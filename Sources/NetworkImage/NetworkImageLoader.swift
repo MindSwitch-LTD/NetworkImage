@@ -18,7 +18,7 @@ public actor DefaultNetworkImageLoader {
     static let timeoutInterval: TimeInterval = 15
   }
 
-  private let data: (URL) async throws -> (Data, URLResponse)
+  private let data: (URLRequest) async throws -> (Data, URLResponse)
   private let cache: NetworkImageCache
 
   private var ongoingTasks: [URL: Task<CGImage, Error>] = [:]
@@ -32,7 +32,7 @@ public actor DefaultNetworkImageLoader {
   ///   - cache: The network image cache that this loader will use to store the images.
   ///   - session: The session that this loader will use to fetch the images.
   public init(cache: NetworkImageCache, session: URLSession) {
-    self.init(cache: cache, data: session.data(from:))
+    self.init(cache: cache, data: session.data(for:))
   }
 
   /// A shared network image loader.
@@ -47,7 +47,7 @@ public actor DefaultNetworkImageLoader {
 
   init(
     cache: NetworkImageCache,
-    data: @escaping (URL) async throws -> (Data, URLResponse)
+    data: @escaping (URLRequest) async throws -> (Data, URLResponse)
   ) {
     self.data = data
     self.cache = cache
@@ -65,7 +65,12 @@ extension DefaultNetworkImageLoader: NetworkImageLoader {
     }
 
     let task = Task<CGImage, Error> {
-      let (data, response) = try await self.data(url)
+      let host = url.host ?? ""
+      
+      var request = URLRequest(url: url)
+      request.setValue(host, forHTTPHeaderField: "Referer")
+      
+      let (data, response) = try await self.data(request)
 
       // remove ongoing task
       self.ongoingTasks.removeValue(forKey: url)
